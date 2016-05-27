@@ -1,0 +1,8 @@
+[package]
+name = "jira-releaser"
+version = "0.1.0"
+authors = ["aghost-7"]
+
+[dependencies]
+clap = '*'
+hyper = '*'
