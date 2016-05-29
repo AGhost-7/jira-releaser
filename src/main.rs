@@ -1,8 +1,12 @@
 extern crate regex;
+extern crate hyper;
+extern crate rustc_serialize;
 
 use std::process::Command;
 use regex::Regex;
-
+use hyper::{Client, Url};
+use std::io::Read;
+use rustc_serialize::json::Json;
 mod parameters;
 use parameters::Params;
 
@@ -53,6 +57,60 @@ fn parse_jira_identifiers(logs: String) -> Vec<String> {
     parsed
 }
 
+struct JiraIssue {
+    pub json: Json,
+    base_url: Url
+}
+
+impl JiraIssue {
+
+    // fetch from the issue tag
+    pub fn from_tag(client: &Client, params: &Params, tag: String) -> Result<JiraIssue, String> {
+        let baseUrl = match Url::parse(&params.url) {
+            Ok(u) => u,
+            Err(e) => return Err("Error parsing url".to_owned())
+        };
+        let apiPart = String::from("/rest/api/2/issue") + (&tag);
+        let url = baseUrl.join(&apiPart).unwrap();
+        match client.get(url).send() {
+            Ok(mut res) => {
+                use hyper::status::StatusCode;
+                use hyper::status::StatusCode::{Created, Accepted};
+                let body: String = match res.status {
+                    StatusCode::Ok | Created | Accepted => {
+                        let mut b = String::new();
+                        res.read_to_string(&mut b).unwrap();
+                        b
+                    },
+                    // TODO: not exist should be a special case?
+                    _ => {
+                        return Err("Error processing request".to_owned())
+                    }
+                };
+                if let Ok(json) = Json::from_str(&body) {
+                    Ok(JiraIssue {
+                        json: json,
+                        base_url: baseUrl
+                    })
+                } else {
+                    Err("Error parsing json response".to_owned())
+                }
+            },
+            Err(_) => {
+                Err("Error connecting to Jira site".to_owned())
+            }
+        }
+
+
+
+        //unimplemented!();
+    }
+    // put request
+    fn update(&self, client: &Client) -> Result<JiraIssue, String> {
+        unimplemented!();
+    }
+}
+
 #[test]
 fn test_jira_parser() {
     let mock_logs = "[FOO-123] hello world!\n\
@@ -67,13 +125,29 @@ fn test_jira_parser() {
     assert_eq!(parsed.len(), 3);
 }
 
+// I need to handle cases where issues don't exist
+
 fn main() {
     let parser = parameters::ParamsParser::new();
     let params: Params = parser.parse_params();
     println!("{:?}", params);
-    let logs = git_logs(&params);
-    match logs {
-        Ok(_) => {
+    match git_logs(&params) {
+        Ok(logs) => {
+            let parsed = parse_jira_identifiers(logs);
+            // and then here we go with hyper
+            let client = Client::new();
+            let url = params.url + "";
+            match client.get(&url).send() {
+                Ok(mut res) => {
+                    let mut buffer = String::new();
+                    res.read_to_string(&mut buffer);
+
+                    println!("Ok: {:?}", res);
+                },
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                }
+            }
         },
         Err(e) => println!("{}", e)
     };
