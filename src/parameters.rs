@@ -6,66 +6,29 @@
 extern crate clap;
 use self::clap::{App, Arg};
 use std::env;
-use std::process;
 
-pub struct Params<'p> {
-    release_branch: &'p str,
-    latest_branch: &'p str,
-    username: &'p str,
-    password: &'p str,
-    url: &'p str
+pub struct ParamsParser {
+    username_env: Option<String>,
+    password_env: Option<String>
 }
 
-impl <'p>Params<'p> {
+#[derive(Debug)]
+pub struct Params {
+    release_branch: String,
+    latest_branch: String,
+    username: String,
+    password: String,
+    url: String
+}
 
-    pub fn get_params() -> Params<'p> {
-        let app = Params::get_app();
-        let args = app.get_matches();
-        println!("args: {:?}", args);
-        Params {
-            release_branch: "",
-            latest_branch: "",
-            username: "",
-            password: "",
-            url: ""
+impl ParamsParser {
+    pub fn new<'n>() -> ParamsParser {
+        ParamsParser {
+            username_env: env::var("JIRA_USERNAME").ok(),
+            password_env: env::var("JIRA_PASSWORD").ok()
         }
     }
-
-    fn get_password_arg<'r>() -> Arg<'r, 'r> {
-        let mut arg = Arg::with_name("Password")
-            .short("p")
-            .long("password")
-            .takes_value(true)
-            .help("Jira password. Falls back to JIRA_PASSWORD environment \
-                variable");
-        match env::var_os("JIRA_PASSWORD") {
-            Some(password) => {
-                arg.default_value(password)
-            },
-            None => {
-                arg.required(true)
-            }
-        }
-    }
-
-    fn get_username_arg<'r>() -> Arg<'r, 'r> {
-        let mut arg = Arg::with_name("Username")
-             .short("u")
-             .long("usename")
-             .takes_value(true)
-             .help("Your Jira username. Falls back to the JIRA_USERNAME \
-                environment variable");
-        match env::var_os("JIRA_USERNAME") {
-            Some(username) => {
-                arg.default_value(username)
-            },
-            None => {
-                arg.required(true)
-            }
-        }
-    }
-
-    fn get_app<'r>() -> App<'r, 'r> {
+    fn get_app(&self) -> App {
         App::new("Jira Release Tool")
             .version("0.1.0")
             .author("Jonathan Boudreau")
@@ -76,21 +39,61 @@ impl <'p>Params<'p> {
                  .required(true)
                  .help("The branch which once the release is created, \
                        will be merged into"))
-            .arg(Arg::with_name("Lastest branch")
+            .arg(Arg::with_name("Latest branch")
                 .short("l")
                 .long("latest-branch")
                 .takes_value(true)
                 .required(true)
                 .help("The branch which is going to be merged to trigger \
                     the release"))
-            .arg(Params::get_username_arg())
-            .arg(Params::get_password_arg())
-            .arg(Arg::with_name("Jira Url")
+            .arg(Arg::with_name("Jira URL")
                   .short("U")
                   .long("url")
                   .takes_value(true)
                   .required(true)
                   .help("This is the api root url for your Jira project."))
+            .arg(self.username_arg())
+            .arg(self.password_arg())
+    }
+
+    fn username_arg(&self) -> Arg {
+        let arg = Arg::with_name("Username")
+             .short("u")
+             .long("usename")
+             .takes_value(true)
+             .help("Your Jira username. Falls back to the JIRA_USERNAME \
+                environment variable");
+        match self.username_env.as_ref() {
+            Some(username) => arg.default_value(username),
+            None => arg.required(true)
+        }
+    }
+
+    fn password_arg(&self) -> Arg {
+        let arg = Arg::with_name("Password")
+            .short("p")
+            .long("password")
+            .takes_value(true)
+            .help("Jira password. Falls back to JIRA_PASSWORD environment \
+                variable");
+        match self.password_env.as_ref() {
+            Some(password) => arg.default_value(password),
+            None => arg.required(true)
+        }
+    }
+
+    pub fn parse_params(&self) -> Params {
+        let app = self.get_app();
+        let matches = app.get_matches();
+        println!("{:?}", matches);
+        let from_key = |s: &str| matches.value_of(s).unwrap().to_owned();
+        Params {
+            username: from_key("Username"),
+            password: from_key("Password"),
+            url: from_key("Jira URL"),
+            release_branch: from_key("Release branch"),
+            latest_branch: from_key("Latest branch")
+        }
     }
 }
 
