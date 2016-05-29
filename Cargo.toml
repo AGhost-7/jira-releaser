@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["aghost-7"]
 
 [dependencies]
-clap = '*'
-hyper = '*'
+clap = '2.5.1'
+hyper = '0.9.6'
+regex = '0.1.71'

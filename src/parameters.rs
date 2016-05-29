@@ -14,11 +14,11 @@ pub struct ParamsParser {
 
 #[derive(Debug)]
 pub struct Params {
-    release_branch: String,
-    latest_branch: String,
-    username: String,
-    password: String,
-    url: String
+    pub release_branch: String,
+    pub latest_branch: String,
+    pub username: String,
+    pub password: String,
+    pub url: String
 }
 
 impl ParamsParser {
