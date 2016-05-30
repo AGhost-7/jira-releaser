@@ -43,14 +43,16 @@ fn git_logs(params: &Params) -> Result<String, String> {
     }
 }
 
-fn parse_jira_identifiers(logs: String) -> Vec<String> {
+fn parse_jira_identifiers(params: &Params, logs: String) -> Vec<String> {
     let mut parsed: Vec<String> = Vec::new();
-    let snip_reg = Regex::new("^\\[?(?P<tag>[:alpha:]+)(-| )(?P<num>[0-9]+)\\]?").unwrap();
+    let start_reg = "^\\s*\\[?\\s*".to_owned();
+    let end_reg = "(-| )(?P<num>[0-9]\\]?";
+    let upper_id = params.project_id.to_uppercase();
+    let reg = Regex::new(start_reg + upper_id + end_reg).unwrap();
     for line in logs.lines() {
-        if let Some(capture) = snip_reg.captures(line) {
-            let tag = capture.name("tag").unwrap();
+        if let Some(capture) = reg.captures(line) {
             let num = capture.name("num").unwrap();
-            let iden = tag.to_uppercase() + "-" + num;
+            let iden = &upper_id + "-" + num;
             parsed.push(iden);
         }
     }

@@ -18,7 +18,8 @@ pub struct Params {
     pub latest_branch: String,
     pub username: String,
     pub password: String,
-    pub url: String
+    pub url: String,
+    pub project_id: String
 }
 
 impl ParamsParser {
@@ -52,6 +53,12 @@ impl ParamsParser {
                   .takes_value(true)
                   .required(true)
                   .help("This is the api root url for your Jira project."))
+            .arg(Arg::with_name("Project Id")
+                 .short("P")
+                 .long("project-id")
+                 .takes_value(true)
+                 .required(true)
+                 .help("Project id or key on Jira"))
             .arg(self.username_arg())
             .arg(self.password_arg())
     }
@@ -92,7 +99,8 @@ impl ParamsParser {
             password: from_key("Password"),
             url: from_key("Jira URL"),
             release_branch: from_key("Release branch"),
-            latest_branch: from_key("Latest branch")
+            latest_branch: from_key("Latest branch"),
+            project_id: from_key("Project Id")
         }
     }
 }
