@@ -125,8 +125,8 @@ fn test_jira_parser() {
     println!("parsed: {:?}", parsed);
     let contains = |s: &'static str| parsed.contains(&String::from(s));
     assert!(contains("FOO-123"));
-    assert!(parsed.contains(&String::from("FOO-12")));
-    assert!(parsed.contains(&String::from("FOO-20")));
+    assert!(contains("FOO-12"));
+    assert!(contains("FOO-20"));
     assert_eq!(parsed.len(), 3);
 }
 
