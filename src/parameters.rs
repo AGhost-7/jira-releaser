@@ -6,6 +6,7 @@
 extern crate clap;
 use self::clap::{App, Arg};
 use std::env;
+use std::ffi::OsString;
 
 pub struct ParamsParser {
     username_env: Option<String>,
@@ -20,6 +21,18 @@ pub struct Params {
     pub password: String,
     pub url: String,
     pub project_id: String
+}
+impl Params {
+    pub fn new () -> Params {
+        Params {
+            release_branch: String::from(""),
+            latest_branch: String::from(""),
+            username: String::from(""),
+            password: String::from(""),
+            url: String::from(""),
+            project_id: String::from("")
+        }
+    }
 }
 
 impl ParamsParser {
@@ -66,7 +79,7 @@ impl ParamsParser {
     fn username_arg(&self) -> Arg {
         let arg = Arg::with_name("Username")
              .short("u")
-             .long("usename")
+             .long("username")
              .takes_value(true)
              .help("Your Jira username. Falls back to the JIRA_USERNAME \
                 environment variable");
@@ -89,10 +102,10 @@ impl ParamsParser {
         }
     }
 
-    pub fn parse_params(&self) -> Params {
+    pub fn parse_str<I, T>(&self, itr: I) -> Params 
+            where I: IntoIterator<Item=T>, T: Into<OsString> {
         let app = self.get_app();
-        let matches = app.get_matches();
-        println!("{:?}", matches);
+        let matches = app.get_matches_from(itr);
         let from_key = |s: &str| matches.value_of(s).unwrap().to_owned();
         Params {
             username: from_key("Username"),
@@ -103,6 +116,45 @@ impl ParamsParser {
             project_id: from_key("Project Id")
         }
     }
+
+    pub fn parse_params(&self) -> Params {
+        self.parse_str(env::args_os())
+    }
 }
 
-
+#[test]
+fn simple_parser() {
+    let parser = ParamsParser {
+        username_env: None,
+        password_env: None
+    };
+    let args = vec![
+        "program",
+        "--username", "Foobar",
+        "--password", "123",
+        "--release-branch", "master",
+        "--latest-branch", "devel",
+        "--url", "http://noodle.com",
+        "--project-id", "NOOB-9000"
+    ];
+    let params = parser.parse_str(&args);
+    assert_eq!(&params.username, "Foobar");
+    assert_eq!(&params.release_branch, "master");
+}
+#[test]
+fn with_env() {
+    let parser = ParamsParser {
+        username_env: Some(String::from("Hai")),
+        password_env: Some(String::from("123"))
+    };
+    let args = vec![
+        "program",
+        "--release-branch", "master",
+        "--latest-branch", "devel",
+        "--url", "http://doodle.com",
+        "--project-id", "WTF-2"
+    ];
+    let params = parser.parse_str(&args);
+    assert_eq!(&params.username, "Hai");
+    assert_eq!(&params.latest_branch, "devel");
+}

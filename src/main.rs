@@ -45,14 +45,17 @@ fn git_logs(params: &Params) -> Result<String, String> {
 
 fn parse_jira_identifiers(params: &Params, logs: String) -> Vec<String> {
     let mut parsed: Vec<String> = Vec::new();
-    let start_reg = "^\\s*\\[?\\s*".to_owned();
-    let end_reg = "(-| )(?P<num>[0-9]\\]?";
+    let start_reg = String::from("(?i)^[ ]*\\[?[ ]*");
+    let end_reg = "(-| )(?P<num>[0-9]*)\\]?";
+    let end_reg_ref: &str = &end_reg;
     let upper_id = params.project_id.to_uppercase();
-    let reg = Regex::new(start_reg + upper_id + end_reg).unwrap();
+    let upper_id_ref: &str = &upper_id;
+    let reg_str: String = start_reg + upper_id_ref + end_reg_ref;
+    let reg = Regex::new(&reg_str).unwrap();
     for line in logs.lines() {
         if let Some(capture) = reg.captures(line) {
             let num = capture.name("num").unwrap();
-            let iden = &upper_id + "-" + num;
+            let iden = upper_id.clone() + "-" + &num;
             parsed.push(iden);
         }
     }
@@ -102,10 +105,6 @@ impl JiraIssue {
                 Err("Error connecting to Jira site".to_owned())
             }
         }
-
-
-
-        //unimplemented!();
     }
     // put request
     fn update(&self, client: &Client) -> Result<JiraIssue, String> {
@@ -117,13 +116,17 @@ impl JiraIssue {
 fn test_jira_parser() {
     let mock_logs = "[FOO-123] hello world!\n\
         this wont show up\n\
-        bam-12 Another one\n\
-        [bam 20] valid\n\
+        foo-12 Another one\n\
+        [foo 20] valid\n\
         Saw3 2 heh";
-    let parsed = parse_jira_identifiers(String::from(mock_logs));
-    assert!(parsed.contains(&String::from("FOO-123")));
-    assert!(parsed.contains(&String::from("BAM-12")));
-    assert!(parsed.contains(&String::from("BAM-20")));
+    let mut mock_params = Params::new();
+    mock_params.project_id = String::from("FOO");
+    let parsed = parse_jira_identifiers(&mock_params, String::from(mock_logs));
+    println!("parsed: {:?}", parsed);
+    let contains = |s: &'static str| parsed.contains(&String::from(s));
+    assert!(contains("FOO-123"));
+    assert!(parsed.contains(&String::from("FOO-12")));
+    assert!(parsed.contains(&String::from("FOO-20")));
     assert_eq!(parsed.len(), 3);
 }
 
@@ -135,7 +138,7 @@ fn main() {
     println!("{:?}", params);
     match git_logs(&params) {
         Ok(logs) => {
-            let parsed = parse_jira_identifiers(logs);
+            let parsed = parse_jira_identifiers(&params, logs);
             // and then here we go with hyper
             let client = Client::new();
             let url = params.url + "";
