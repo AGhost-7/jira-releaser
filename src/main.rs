@@ -45,19 +45,43 @@ fn git_logs(params: &Params) -> Result<String, String> {
 
 fn parse_jira_identifiers(params: &Params, logs: String) -> Vec<String> {
     let mut parsed: Vec<String> = Vec::new();
-    let start_reg = String::from("(?i)^[ ]*\\[?[ ]*");
-    let end_reg = "(-| )(?P<num>[0-9]*)\\]?";
-    let end_reg_ref: &str = &end_reg;
-    let upper_id = params.project_id.to_uppercase();
-    let upper_id_ref: &str = &upper_id;
-    let reg_str: String = start_reg + upper_id_ref + end_reg_ref;
-    let reg = Regex::new(&reg_str).unwrap();
+    let project_id = params.project_id.to_uppercase();
+    let reg_strs = [
+        format!("(?i)^[ ]*{project} (?P<num>[0-9]+)", project = project_id),
+        format!("(?i)^[ ]*{project}-(?P<num>[0-9]+)", project = project_id),
+        format!("(?i)^[ ]*\\[{project}-(?P<num>[0-9]+)\\]", project = project_id),
+        format!("(?i)^[ ]*\\[{project} (?P<num>[0-9]+)\\]", project = project_id),
+        format!("(?i)^[ ]*\\({project}-(?P<num>[0-9]+)\\)", project = project_id),
+        format!("(?i)^[ ]*\\({project} (?P<num>[0-9]+)\\)", project = project_id)
+    ];
+    let regs: Vec<Regex >= reg_strs.iter().map(|s| Regex::new(s).unwrap()).collect();
+
+    //let reg = Regex::new(&reg_str).unwrap();
     for line in logs.lines() {
-        if let Some(capture) = reg.captures(line) {
-            let num = capture.name("num").unwrap();
-            let iden = upper_id.clone() + "-" + &num;
+        let m: Option<(&Regex, String)> = regs.iter().fold(None, |accu, reg| {
+            match accu {
+                Some(_) => accu,
+                None => {
+                    if let Some(cap) = reg.captures(line) {
+                        Some((reg, cap.name("num").unwrap().to_owned()))
+                    } else {
+                        None
+                    }
+                }
+            }
+        });
+        // if there's a pattern that matches, lets see if we can repeat it
+        // multiple times.
+        if let Some((reg, num)) = m {
+            let iden = project_id.clone() + "-" + &num;
             parsed.push(iden);
         }
+
+        //if let Some(capture) = reg.captures(line) {
+        //    let num = capture.name("num").unwrap();
+        //    let iden = project_id.clone() + "-" + &num;
+        //    parsed.push(iden);
+        //}
     }
     parsed
 }
@@ -114,20 +138,38 @@ impl JiraIssue {
 
 #[test]
 fn test_jira_parser() {
+
     let mock_logs = "[FOO-123] hello world!\n\
         this wont show up\n\
         foo-12 Another one\n\
         [foo 20] valid\n\
+        (foo-3] invalid\n\
         Saw3 2 heh";
+
     let mut mock_params = Params::new();
     mock_params.project_id = String::from("FOO");
+
     let parsed = parse_jira_identifiers(&mock_params, String::from(mock_logs));
-    println!("parsed: {:?}", parsed);
     let contains = |s: &'static str| parsed.contains(&String::from(s));
+
     assert!(contains("FOO-123"));
     assert!(contains("FOO-12"));
     assert!(contains("FOO-20"));
+    assert!(!contains("FOO-3"));
     assert_eq!(parsed.len(), 3);
+}
+
+#[test]
+fn jira_parser_multi() {
+    let mock_logs = "[foo 20 foo 22] valid\n\
+        [foo-20 foo-22] valid\n\
+        [foo-21 & foo-24] valid\n\
+        foo-1 foo-2 valid
+        (foo-2) (foo-1) valid";
+    let mut mock_params = Params::new();
+    mock_params.project_id = String::from("foo");
+
+
 }
 
 // I need to handle cases where issues don't exist
