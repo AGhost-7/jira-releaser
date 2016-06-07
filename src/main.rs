@@ -8,6 +8,9 @@ use hyper::{Client, Url};
 use std::io::Read;
 use rustc_serialize::json::Json;
 mod parameters;
+mod complex_pattern;
+
+use complex_pattern::ComplexPattern;
 use parameters::Params;
 
 // Returns the git log diff or the latest and release branches.
@@ -43,6 +46,7 @@ fn git_logs(params: &Params) -> Result<String, String> {
     }
 }
 
+
 fn parse_jira_identifiers(params: &Params, logs: String) -> Vec<String> {
     let mut parsed: Vec<String> = Vec::new();
     let project_id = params.project_id.to_uppercase();
@@ -54,7 +58,13 @@ fn parse_jira_identifiers(params: &Params, logs: String) -> Vec<String> {
         format!("(?i)^[ ]*\\({project}-(?P<num>[0-9]+)\\)", project = project_id),
         format!("(?i)^[ ]*\\({project} (?P<num>[0-9]+)\\)", project = project_id)
     ];
-    let regs: Vec<Regex >= reg_strs.iter().map(|s| Regex::new(s).unwrap()).collect();
+    let regs: Vec<Regex>= reg_strs.iter().map(|s| Regex::new(s).unwrap()).collect();
+    //let comp_reg_strs = [
+     //   (format!("(?i)^[ ]*\\[(?P<sel>({project}-[0-9]+)( & {project}-[0-9])*)\\]", project = project_id),
+    //        format!("(?i", project = project_id))
+    //];
+
+    //let comp_regs: Vec<Regex> = comp_reg_strs.iter().map(|s| Regex::new(s).unwrap()).collect();
 
     //let reg = Regex::new(&reg_str).unwrap();
     for line in logs.lines() {
@@ -170,6 +180,14 @@ fn jira_parser_multi() {
     mock_params.project_id = String::from("foo");
 
 
+}
+#[test]
+fn regex_fiddle() {
+    let reg = Regex::new("(?P<a>a)+").unwrap();
+    let string = "aaaaa";
+    for cap in reg.captures(string).unwrap().iter_named() {
+        println!("cap: {:?}", cap);
+    }
 }
 
 // I need to handle cases where issues don't exist
