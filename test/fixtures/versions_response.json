@@ -1,0 +1,31 @@
+[
+    {
+        "archived": false,
+        "id": "10000",
+        "name": "Version 1.0",
+        "projectId": 10000,
+        "releaseDate": "2016-06-18",
+        "released": true,
+        "self": "https://jboudreau.atlassian.net/rest/api/2/version/10000",
+        "userReleaseDate": "18/Jun/16"
+    },
+    {
+        "archived": false,
+        "id": "10001",
+        "name": "Version 2.0",
+        "overdue": false,
+        "projectId": 10000,
+        "releaseDate": "2016-07-02",
+        "released": false,
+        "self": "https://jboudreau.atlassian.net/rest/api/2/version/10001",
+        "userReleaseDate": "02/Jul/16"
+    },
+    {
+        "archived": false,
+        "id": "10002",
+        "name": "Version 3.0",
+        "projectId": 10000,
+        "released": false,
+        "self": "https://jboudreau.atlassian.net/rest/api/2/version/10002"
+    }
+]
