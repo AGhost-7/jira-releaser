@@ -20,7 +20,8 @@ pub struct Params {
     pub username: String,
     pub password: String,
     pub url: String,
-    pub project_id: String
+    pub project_id: String,
+    pub version_prop: String
 }
 impl Params {
     pub fn new () -> Params {
@@ -30,7 +31,8 @@ impl Params {
             username: String::from(""),
             password: String::from(""),
             url: String::from(""),
-            project_id: String::from("")
+            project_id: String::from(""),
+            version_prop: String::from("")
         }
     }
 }
@@ -51,6 +53,7 @@ impl ParamsParser {
                  .long("release-branch")
                  .takes_value(true)
                  .required(true)
+                 .default_value("master")
                  .help("The branch which once the release is created, \
                        will be merged into"))
             .arg(Arg::with_name("Latest branch")
@@ -58,6 +61,7 @@ impl ParamsParser {
                 .long("latest-branch")
                 .takes_value(true)
                 .required(true)
+                .default_value("develop")
                 .help("The branch which is going to be merged to trigger \
                     the release"))
             .arg(Arg::with_name("Jira URL")
@@ -72,6 +76,13 @@ impl ParamsParser {
                  .takes_value(true)
                  .required(true)
                  .help("Project id or key on Jira"))
+            .arg(Arg::with_name("Version Property")
+                 .short("v")
+                 .long("version-prop")
+                 .takes_value(true)
+                 .default_value("fixVersions")
+                 .help("The field of the Jira API which represents the versions \
+                       related to the issue"))
             .arg(self.username_arg())
             .arg(self.password_arg())
     }
@@ -113,7 +124,8 @@ impl ParamsParser {
             url: from_key("Jira URL"),
             release_branch: from_key("Release branch"),
             latest_branch: from_key("Latest branch"),
-            project_id: from_key("Project Id")
+            project_id: from_key("Project Id"),
+            version_prop: from_key("Version Property")
         }
     }
 
@@ -149,12 +161,12 @@ fn with_env() {
     };
     let args = vec![
         "program",
-        "--release-branch", "master",
-        "--latest-branch", "devel",
+        "--release-branch", "foobar",
         "--url", "http://doodle.com",
         "--project-id", "WTF-2"
     ];
     let params = parser.parse_str(&args);
     assert_eq!(&params.username, "Hai");
-    assert_eq!(&params.latest_branch, "devel");
+    assert_eq!(&params.latest_branch, "develop");
+    assert_eq!(&params.release_branch, "foobar");
 }
