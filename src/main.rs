@@ -7,15 +7,19 @@ extern crate hyper;
 extern crate rustc_serialize;
 
 use std::process::Command;
-use hyper::{Client, Url};
+use hyper::Client;
 use hyper::client::response::Response;
-use hyper::status::StatusCode;
+use hyper::status::{StatusCode, StatusClass};
 
 use hyper::mime;
 
 use std::io::Read;
 use rustc_serialize::json::{self, Json};
 use std::collections::BTreeMap;
+
+use hyper::method::Method;
+use hyper::client::IntoUrl;
+use hyper::header::{Authorization, Basic, ContentType};
 
 mod parameters;
 mod token_parser;
@@ -58,72 +62,6 @@ fn git_logs(params: &Params) -> Result<String, String> {
     }
 }
 
-fn parse_body(res: &mut Response) -> Result<Json, String> {
-    let mut body: String = String::new();
-    match res.read_to_string(&mut body) {
-        Err(_) => {
-            Err("Error reading body".to_owned())
-        },
-        Ok(_) => {
-            Json::from_str(&body)
-                .map_err(|e| "Error parsing Json response.".to_owned())
-        }
-    }
-}
-
-//struct JiraIssue {
-//    pub json: Json,
-//    base_url: Url
-//}
-//
-//impl JiraIssue {
-//
-//    // fetch from the issue tag
-//    pub fn from_tag(client: &Client, params: &Params, tag: String)
-//            -> Result<JiraIssue, String> {
-//        let baseUrl = match Url::parse(&params.url) {
-//            Ok(u) => u,
-//            Err(e) => return Err("Error parsing url".to_owned())
-//        };
-//        let apiPart = String::from("/rest/api/2/issue") + (&tag);
-//        let url = baseUrl.join(&apiPart).unwrap();
-//        match client.get(url).send() {
-//            Ok(mut res) => {
-//                let body: String = match res.status {
-//                    StatusCode::Ok | StatusCode::Created | StatusCode::Accepted => {
-//                        let mut b = String::new();
-//                        res.read_to_string(&mut b).unwrap();
-//                        b
-//                    },
-//                    // TODO: not exist should be a special case?
-//                    _ => {
-//                        return Err("Error processing request".to_owned())
-//                    }
-//                };
-//                if let Ok(json) = Json::from_str(&body) {
-//                    Ok(JiraIssue {
-//                        json: json,
-//                        base_url: baseUrl
-//                    })
-//                } else {
-//                    Err("Error parsing json response".to_owned())
-//                }
-//            },
-//            Err(_) => {
-//                Err("Error connecting to Jira site".to_owned())
-//            }
-//        }
-//    }
-//    // put request
-//    fn update(&self, client: &Client) -> Result<JiraIssue, String> {
-//        unimplemented!();
-//    }
-//}
-
-use hyper::method::Method;
-use hyper::client::IntoUrl;
-use hyper::header::{Headers, Authorization, Basic, ContentType};
-
 fn send_jira_request<U: IntoUrl>(
         client: &Client,
         method: Method,
@@ -157,6 +95,15 @@ struct JiraVersion {
     pub name: String,
     pub id: String
 }
+#[derive(RustcDecodable, RustcEncodable)]
+struct JiraIssueFields {
+    pub fixVersions: Vec<JiraVersion>
+}
+
+#[derive(RustcDecodable, RustcEncodable)]
+struct JiraIssue {
+    pub fields: JiraIssueFields
+}
 
 fn create_jira_version(client: &Client, params: &Params)
         -> Result<JiraVersion, String> {
@@ -185,7 +132,8 @@ fn create_jira_version(client: &Client, params: &Params)
                         json::decode(&body_str).unwrap();
                     Ok(version)
                 },
-                rest => {
+                StatusCode::Unauthorized => Err("Bad credentials".to_owned()),
+                _ => {
                     let str_status = res.status.canonical_reason().unwrap();
                     Err("Server error creating Jira version: ".to_owned() +
                         str_status)
@@ -222,10 +170,10 @@ fn get_jira_version(client: &Client, params: &Params)
                     }
                     Ok(version)
                 },
-                rest => {
-                    let str_status = res.status.canonical_reason().unwrap();
-                    Err("Server error fetching Jira version: ".to_owned() +
-                        str_status)
+                _ => {
+                    let msg = format!("Server error fetching Jira versions \
+                        for project {}: {}", params.project_id, res.status);
+                    Err(msg)
                 }
             }
         }
@@ -245,9 +193,37 @@ fn ensure_project_version(client: &Client, params: &Params)
     }
 }
 
+fn generic_issue_error<E>(code: &StatusCode, issue_token: &str)
+        -> Result<E, String> {
+    Err(
+        format!(
+            "Error modifying issue {issue_token}: {code}",
+            code = code,
+            issue_token = issue_token
+        )
+    )
+}
+
 fn get_issue_versions(client: &Client, params: &Params, issue_token: &str)
         -> Result<Option<Vec<JiraVersion>>, String> {
-    unimplemented!();
+    let url = params.url.to_string() + "/rest/api/2/issue" + issue_token;
+    match send_jira_request(client, Method::Get, &url, params, None) {
+        Ok(mut res) => {
+            match res.status {
+                StatusCode::NotFound => Ok(None),
+                StatusCode::Ok => {
+                    let mut data = String::new();
+                    res.read_to_string(&mut data).unwrap();
+                    let issue: JiraIssue = json::decode(&data).unwrap();
+                    Ok(Some(issue.fields.fixVersions))
+                },
+                rest => generic_issue_error(&rest, issue_token)
+            }
+        },
+        Err(_) => {
+            Err("Error connecting to server".to_owned())
+        }
+    }
 }
 
 fn set_issue_versions(
@@ -256,7 +232,28 @@ fn set_issue_versions(
         issue_token: &str,
         versions: Vec<JiraVersion>
         ) -> Result<Vec<JiraVersion>, String> {
-    unimplemented!();
+    let url = params.url.to_string() + "/rest/api/2/issue" + issue_token;
+    let issue = JiraIssue {
+        fields: JiraIssueFields {
+            fixVersions: versions.clone()
+        }
+    };
+    let payload = json::encode(&issue).unwrap();
+    let response_result =
+        send_jira_request(client, Method::Put, &url, params, Some(&payload));
+    match response_result {
+        Ok(res) => {
+            match res.status.class() {
+                StatusClass::Success => {
+                    Ok(versions)
+                },
+                _ => generic_issue_error(&res.status, issue_token)
+            }
+        },
+        Err(_) => {
+            Err("Error connecting to server".to_owned())
+        }
+    }
 }
 
 // Returns None if the issue doesnt exist. Otherwise returns a Some<Vec> with
@@ -308,8 +305,6 @@ fn publish_release<'s>(
 
     Ok(not_exist)
 }
-
-// I need to handle cases where issues don't exist
 
 fn main() {
     let parser = parameters::ParamsParser::new();
