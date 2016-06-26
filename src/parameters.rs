@@ -1,7 +1,7 @@
 
-// This file contains code which parses the parameters. It handles parsing the arguments
-// as well as falling back to environment variables. If I ever decide to add a .*rc file,
-// the code handling this will be added here.
+// This file contains code which parses the parameters. It handles parsing the
+// arguments as well as falling back to environment variables. If I ever decide
+// to add a .*rc file, the code handling this will be added here.
 
 extern crate clap;
 use self::clap::{App, Arg};

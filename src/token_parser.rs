@@ -51,8 +51,9 @@ impl ComplexPattern {
             close_tag: &str,
             multi_separator: &str) -> ComplexPattern {
 
-        // TODO: Sanitize user input: If the project id is a bad regex currently it can
-        // cause the program to crash. I want a clean error message instead.
+        // TODO: Sanitize user input: If the project id is a bad regex
+        // currently it can cause the program to crash. I want a clean error
+        // message instead.
         let pred_str = ComplexPattern::predicate(project_id,
             tag_seperator,
             open_tag,
@@ -107,10 +108,12 @@ impl TokenParser {
         TokenParser {
             patterns: vec![
                 // [foo-1 & foo-2] foobar
-                ComplexPattern::new(project_id, "-", "\\[", "\\]", "[ ]+&[ ]+"),
+                ComplexPattern::new(project_id, "-", "\\[", "\\]",
+                    "[ ]+&[ ]+"),
                 // (foo-1 foo-2) foobar
                 ComplexPattern::new(project_id, "-", "[(]", "[)]", "[ ]+"),
-                ComplexPattern::new(project_id, "-", "[(]", "[)]", "[ ]*,[ ]+"),
+                ComplexPattern::new(project_id, "-", "[(]", "[)]",
+                    "[ ]*,[ ]+"),
                 // foo-1 foo-2 foobar
                 ComplexPattern::new(project_id, "-", "", "", "[ ]+"),
                 // foo-1, foo-2 foobar
@@ -138,16 +141,24 @@ impl TokenParser {
 
 #[test]
 fn predicate_pattern() {
-    let pred_str = ComplexPattern::predicate("foo", "-", "\\[", "\\]", "[ ]+&[ ]+");
+    let pred_str = ComplexPattern::predicate(
+        "foo", "-", "\\[", "\\]", "[ ]+&[ ]+"
+    );
     let pred = Regex::new(&pred_str).unwrap();
     assert!(pred.is_match("[foo-1 & foo-2] hello world!"));
     assert!(pred.is_match("[foo-20]"));
     assert!(pred.captures("[foo-20]").is_some());
     assert!(pred.is_match(" [ foo-100] foobar"));
-    assert_eq!(pred.captures("[ foo-1  ] hai").unwrap().name("inner").unwrap(), "foo-1");
+    assert_eq!(
+        pred.captures("[ foo-1  ] hai").unwrap().name("inner").unwrap(),
+        "foo-1"
+    );
     let pred2_str = ComplexPattern::predicate("foo", "-", "\\(", "\\)", " ");
     let pred2 = Regex::new(&pred2_str).unwrap();
-    assert_eq!(pred2.captures("(foo-1 foo-2)").unwrap().name("inner").unwrap(), "foo-1 foo-2");
+    assert_eq!(
+        pred2.captures("(foo-1 foo-2)").unwrap().name("inner").unwrap(),
+        "foo-1 foo-2"
+    );
 }
 
 #[test]
@@ -160,7 +171,10 @@ fn complex_pattern() {
     assert!(pat.find("[foo ]").is_none(), "[foo ] isnt none");
     assert_eq!(pat.find("[foo-9 & foo-10]").unwrap(), ["FOO-9", "FOO-10"]);
     let pat2 = ComplexPattern::new("hello", "-", "[(]", "[)]", "[ ]+");
-    assert_eq!(pat2.find("(hello-10 hello-2) YOLO").unwrap(), ["HELLO-10", "HELLO-2"]);
+    assert_eq!(
+        pat2.find("(hello-10 hello-2) YOLO").unwrap(),
+        ["HELLO-10", "HELLO-2"]
+    );
 }
 
 #[test]
