@@ -20,7 +20,8 @@ pub struct Params {
     pub username: String,
     pub password: String,
     pub url: String,
-    pub project_id: String
+    pub project_id: String,
+    pub version_name: String
 }
 impl Params {
     pub fn new () -> Params {
@@ -30,7 +31,8 @@ impl Params {
             username: String::from(""),
             password: String::from(""),
             url: String::from(""),
-            project_id: String::from("")
+            project_id: String::from(""),
+            version_name: String::from("")
         }
     }
 }
@@ -74,6 +76,12 @@ impl ParamsParser {
                  .takes_value(true)
                  .required(true)
                  .help("Project id or key on Jira"))
+            .arg(Arg::with_name("Version name")
+                 .short("v")
+                 .long("version-name")
+                 .takes_value(true)
+                 .required(true)
+                 .help("The version name to use for the release."))
             .arg(self.username_arg())
             .arg(self.password_arg())
     }
@@ -115,7 +123,8 @@ impl ParamsParser {
             url: from_key("Jira URL"),
             release_branch: from_key("Release branch"),
             latest_branch: from_key("Latest branch"),
-            project_id: from_key("Project Id")
+            project_id: from_key("Project Id"),
+            version_name: from_key("Version name")
         }
     }
 
@@ -137,7 +146,8 @@ fn simple_parser() {
         "--release-branch", "master",
         "--latest-branch", "devel",
         "--url", "http://noodle.com",
-        "--project-id", "NOOB-9000"
+        "--project-id", "NOOB-9000",
+        "--version-name", "1.1.1"
     ];
     let params = parser.parse_str(&args);
     assert_eq!(&params.username, "Foobar");
@@ -154,7 +164,8 @@ fn with_env() {
         "program",
         "--release-branch", "foobar",
         "--url", "http://doodle.com",
-        "--project-id", "WTF-2"
+        "--project-id", "WTF-2",
+        "--version-name", "1.1.1"
     ];
     let params = parser.parse_str(&args);
     assert_eq!(&params.username, "Hai");

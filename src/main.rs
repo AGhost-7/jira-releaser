@@ -3,10 +3,16 @@ extern crate hyper;
 extern crate rustc_serialize;
 
 use std::process::Command;
-use regex::Regex;
 use hyper::{Client, Url};
+use hyper::client::response::Response;
+use hyper::status::StatusCode;
+
+use hyper::mime;
+
 use std::io::Read;
-use rustc_serialize::json::Json;
+use rustc_serialize::json::{self, Json};
+use std::collections::BTreeMap;
+
 mod parameters;
 mod token_parser;
 
@@ -46,6 +52,18 @@ fn git_logs(params: &Params) -> Result<String, String> {
     }
 }
 
+fn parse_body(res: &mut Response) -> Result<Json, String> {
+    let mut body: String = String::new();
+    match res.read_to_string(&mut body) {
+        Err(_) => {
+            Err("Error reading body".to_owned())
+        },
+        Ok(_) => {
+            Json::from_str(&body).map_err(|e| "Error parsing Json response.".to_owned())
+        }
+    }
+}
+
 struct JiraIssue {
     pub json: Json,
     base_url: Url
@@ -63,10 +81,8 @@ impl JiraIssue {
         let url = baseUrl.join(&apiPart).unwrap();
         match client.get(url).send() {
             Ok(mut res) => {
-                use hyper::status::StatusCode;
-                use hyper::status::StatusCode::{Created, Accepted};
                 let body: String = match res.status {
-                    StatusCode::Ok | Created | Accepted => {
+                    StatusCode::Ok | StatusCode::Created | StatusCode::Accepted => {
                         let mut b = String::new();
                         res.read_to_string(&mut b).unwrap();
                         b
@@ -94,6 +110,49 @@ impl JiraIssue {
     fn update(&self, client: &Client) -> Result<JiraIssue, String> {
         unimplemented!();
     }
+}
+
+fn create_jira_version(client: &Client, params: &Params) -> Result<Json, String> {
+    let mut map = BTreeMap::new();
+    // what is the version??
+    map.insert("name".to_owned(), Json::String(params.version_name.clone()));
+    map.insert("project".to_owned(), Json::String(params.project_id.clone()));
+    let payload_obj = Json::Object(map);
+    let content_type = hyper::header::ContentType(
+        mime::Mime(mime::TopLevel::Application, mime::SubLevel::Json, Vec::new())
+    );
+    let url = params.url.to_owned() + "/rest/api/2/version";
+    let res = client
+        .post(&url)
+        .body(&payload_obj.to_string())
+        .header(content_type)
+        .send();
+    match res {
+        Ok(mut res) => {
+            match res.status {
+                StatusCode::NoContent | StatusCode::Ok => {
+                    parse_body(&mut res)
+                },
+                rest => {
+                    let str_status = res.status.canonical_reason().unwrap();
+                    Err("Server error creating Jira version: ".to_owned() + str_status)
+                }
+            }
+        },
+        Err(_) => {
+            Err("Could not request creation of Jira version".to_owned())
+        }
+    }
+}
+
+fn get_jira_versions(client: &Client, params: &Params) -> Result<Json, String> {
+    let url = params.url.to_owned() + "/rest/api/2/project/" + &params.project_id + "versions";
+    unimplemented!();
+}
+
+// Makes a GET request and then creates the jira version if it doesnt exists
+fn ensure_jira_version(client: &Client, params: &Params) -> Result<Json, String> {
+    unimplemented!();
 }
 
 // I need to handle cases where issues don't exist
