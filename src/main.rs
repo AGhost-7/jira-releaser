@@ -206,7 +206,7 @@ fn generic_issue_error<E>(code: &StatusCode, issue_token: &str)
 
 fn get_issue_versions(client: &Client, params: &Params, issue_token: &str)
         -> Result<Option<Vec<JiraVersion>>, String> {
-    let url = params.url.to_string() + "/rest/api/2/issue" + issue_token;
+    let url = params.url.to_string() + "/rest/api/2/issue/" + issue_token;
     match send_jira_request(client, Method::Get, &url, params, None) {
         Ok(mut res) => {
             match res.status {
@@ -232,7 +232,7 @@ fn set_issue_versions(
         issue_token: &str,
         versions: Vec<JiraVersion>
         ) -> Result<Vec<JiraVersion>, String> {
-    let url = params.url.to_string() + "/rest/api/2/issue" + issue_token;
+    let url = params.url.to_string() + "/rest/api/2/issue/" + issue_token;
     let issue = JiraIssue {
         fields: JiraIssueFields {
             fixVersions: versions.clone()
