@@ -130,19 +130,17 @@ fn create_jira_version(client: &Client, params: &Params)
 
     match res {
         Ok(mut res) => {
-            match res.status {
-                StatusCode::NoContent | StatusCode::Ok => {
+            match res.status.class() {
+                StatusClass::Success => {
                     let mut body_str = String::new();
                     res.read_to_string(&mut body_str).unwrap();
                     let version: JiraVersion =
                         json::decode(&body_str).unwrap();
                     Ok(version)
                 },
-                StatusCode::Unauthorized => Err("Bad credentials".to_owned()),
                 _ => {
-                    let str_status = res.status.canonical_reason().unwrap();
-                    Err("Server error creating Jira version: ".to_owned() +
-                        str_status)
+                    //let str_status = res.status.canonical_reason().unwrap();
+                    Err(format!("Server error creating Jira version {}", res.status))
                 }
             }
         },
