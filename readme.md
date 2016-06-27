@@ -27,9 +27,9 @@ OPTIONS:
 ```
 
 ## Authentication
-Currently uses Basic Auth over HTTPS thanks to OpenSSL. N.b., it is
-recommended to use environment variables instead of passing it as an
-argument directly to the commit line tool for the credentials. You
-should place the credentials in a separate file and source it from your
-`.bashrc` or `.bash_profile`. Doing this, you can place the credentials
-in an ecryptfs folder, or something similar.
+Currently uses Basic Auth over HTTPS thanks to OpenSSL. N.b., it is recommended
+to use environment variables instead of passing it as an argument directly to
+the command line tool for the credentials. You should place the credentials in
+a separate file and source it from your `.bashrc` or `.bash_profile`. Doing
+this, you can place the credentials file in an ecryptfs folder, or something
+similar.
