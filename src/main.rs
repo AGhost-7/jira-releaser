@@ -333,7 +333,7 @@ fn main() {
                     }
                     msg.push_str(tkn);
                 }
-                debug!(msg);
+                debug!("{}", msg);
             }
             let client = Client::new();
             match publish_release(&client, &params, &issue_tokens[..]) {
