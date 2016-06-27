@@ -9,6 +9,8 @@ hyper = '0.9.6'
 regex = '0.1.71'
 rustc-serialize = '0.3'
 clippy = {version = "*",optional = true}
+log = '0.3'
+env_logger = '0.3'
 
 [dev-dependencies]
 mockito = '0.2.2'

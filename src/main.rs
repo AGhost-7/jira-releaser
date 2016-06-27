@@ -5,6 +5,9 @@
 extern crate regex;
 extern crate hyper;
 extern crate rustc_serialize;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 use std::process::Command;
 use hyper::Client;
@@ -114,6 +117,9 @@ fn create_jira_version(client: &Client, params: &Params)
     let payload_obj = Json::Object(map).to_string();
 
     let url = params.url.to_owned() + "/rest/api/2/version";
+    debug!("creating Jira version {} through url: {}", params.version_name,
+        url);
+    debug!("POST payload: {:?}", payload_obj);
     let res = send_jira_request(
         client,
         Method::Post,
@@ -153,6 +159,8 @@ fn get_jira_version(client: &Client, params: &Params)
     let url = params.url.to_owned() +
         "/rest/api/2/project/" +
         &params.project_id + "/versions";
+    debug!("fetching jira versions for project {} with url: {}",
+        params.project_id, url);
     let res = send_jira_request(client, Method::Get, &url, params, None);
     match res {
         Ok(mut res) => {
@@ -197,7 +205,7 @@ fn generic_issue_error<E>(code: &StatusCode, issue_token: &str)
         -> Result<E, String> {
     Err(
         format!(
-            "Error modifying issue {issue_token}: {code}",
+            "Error with issue {issue_token}: {code}",
             code = code,
             issue_token = issue_token
         )
@@ -207,6 +215,7 @@ fn generic_issue_error<E>(code: &StatusCode, issue_token: &str)
 fn get_issue_versions(client: &Client, params: &Params, issue_token: &str)
         -> Result<Option<Vec<JiraVersion>>, String> {
     let url = params.url.to_string() + "/rest/api/2/issue/" + issue_token;
+    debug!("fetching issue {} through url: {}", issue_token, url);
     match send_jira_request(client, Method::Get, &url, params, None) {
         Ok(mut res) => {
             match res.status {
@@ -233,6 +242,7 @@ fn set_issue_versions(
         versions: Vec<JiraVersion>
         ) -> Result<Vec<JiraVersion>, String> {
     let url = params.url.to_string() + "/rest/api/2/issue/" + issue_token;
+    debug!("modifying issue {} through url: {}", issue_token, url);
     let issue = JiraIssue {
         fields: JiraIssueFields {
             fixVersions: versions.clone()
@@ -307,8 +317,10 @@ fn publish_release<'s>(
 }
 
 fn main() {
+    env_logger::init().unwrap();
     let parser = parameters::ParamsParser::new();
     let params: Params = parser.parse_params();
+    info!("params: {:?}", params);
     let token_parser = TokenParser::new(&params.project_id);
     match git_logs(&params) {
         Ok(logs) => {
