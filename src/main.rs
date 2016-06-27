@@ -325,6 +325,16 @@ fn main() {
     match git_logs(&params) {
         Ok(logs) => {
             let issue_tokens = token_parser.parse(&logs);
+            if log_enabled!(log::LogLevel::Debug) {
+                let mut msg = String::from("Tokens in logs: ");
+                for (i, tkn) in issue_tokens.iter().enumerate() {
+                    if i != 0 {
+                        msg.push_str(", ");
+                    }
+                    msg.push_str(tkn);
+                }
+                debug!(msg);
+            }
             let client = Client::new();
             match publish_release(&client, &params, &issue_tokens[..]) {
                 Ok(invalid_tokens) => {
