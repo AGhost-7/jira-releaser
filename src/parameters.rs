@@ -46,7 +46,7 @@ impl ParamsParser {
     }
     fn get_app(&self) -> App {
         App::new("Jira Release Tool")
-            .version("0.1.0")
+            .version("0.2.0")
             .author("Jonathan Boudreau")
             .arg(Arg::with_name("Release branch")
                  .short("r")
