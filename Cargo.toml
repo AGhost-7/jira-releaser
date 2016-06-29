@@ -1,5 +1,5 @@
 [package]
-name = "jira-releaser"
+name = "jira_releaser"
 version = "0.1.0"
 authors = ["aghost-7"]
 

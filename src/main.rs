@@ -5,6 +5,9 @@
 extern crate regex;
 extern crate hyper;
 extern crate rustc_serialize;
+#[cfg(test)]
+extern crate mockito;
+
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -24,7 +27,7 @@ use hyper::method::Method;
 use hyper::client::IntoUrl;
 use hyper::header::{Authorization, Basic, ContentType};
 
-mod parameters;
+pub mod parameters;
 mod token_parser;
 
 use parameters::Params;
@@ -292,7 +295,7 @@ fn ensure_issue_version(
 }
 
 // Returns issue tokens which dont exist.
-fn publish_release<'s>(
+pub fn publish_release<'s>(
         client: &Client,
         params: &Params,
         issue_tokens: &'s [String]
@@ -358,4 +361,70 @@ fn main() {
         },
         Err(e) => println!("{}", e)
     };
+}
+
+
+#[cfg(test)]
+mod test {
+    use hyper::Client;
+    use mockito::{mock, SERVER_ADDRESS};
+    use parameters::Params;
+    use std::fs::File;
+    use std::io::prelude::*;
+    use std::path::Path;
+    use ::std;
+    use ::env_logger;
+    use std::env;
+
+    fn slurp_fixture(file_path: &str) -> String {
+        let fixtures_dir = std::env::var("FIXTURES_DIR").unwrap();
+        let base_path = Path::new(&fixtures_dir);
+        let p_buf = base_path.join(file_path);
+        let p = p_buf.as_path();
+        let mut string = String::new();
+        let mut file = File::open(&p).unwrap();
+
+        file.read_to_string(&mut string).unwrap();
+        string
+    }
+
+    #[test]
+    fn pull_data() {
+        env_logger::init().unwrap();
+        let issue_1 = slurp_fixture("issue1_response.json");
+        let versions = slurp_fixture("versions_response.json");
+        let create_version = slurp_fixture("versions_response.json");
+        mock("GET", "/rest/api/2/issue/EX-2")
+            .match_header("content-type", "application/json")
+            .with_body(&issue_1)
+            .create();
+        mock("GET", "/rest/api/2/project/EX/versions")
+            .match_header("content-type", "application/json")
+            .with_body(&versions)
+            .create();
+        mock("POST", "/rest/api/2/project/EX/versions")
+            .match_header("content-type", "applcation/json")
+            .with_body(&create_version)
+            .create();
+        mock("PUT", "/rest/api/2/issue/EX-2")
+            .match_header("content-type", "application/json")
+            .with_status(204)
+            .create();
+        mock("GET", "/a").with_body("a").create();
+
+        let mut params = Params::new();
+        params.url = "http://".to_owned() + SERVER_ADDRESS;
+        params.project_id = "EX".to_owned();
+        params.version_name = "1.2.0".to_owned();
+
+        let client = Client::new();
+
+        let issue_tokens = [
+            "EX-1".to_owned(),
+            "EX-2".to_owned()
+        ];
+        let res = super::publish_release(&client, &params, &issue_tokens[..]);
+        println!("{:?}", res);
+        assert!(res.is_ok(), "Did not error out");
+    }
 }
