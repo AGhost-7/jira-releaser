@@ -371,7 +371,6 @@ fn main() {
 #[cfg(test)]
 mod test {
     use hyper::Client;
-    use mockito::{mock, SERVER_ADDRESS};
     use parameters::Params;
     use std::fs::File;
     use std::io::prelude::*;
@@ -398,44 +397,29 @@ mod test {
         string
     }
 
-//    macro_rules! mock_route {
-//        ( $router:expr, $met:ident, $url:expr, $data:expr) => {
-//            $router.$met($url, |req: &mut Request| {
-//                
-//                let mut res = Response::with((status::Ok, $data));
-//                res.headers.set(content_type);
-//                Ok(res)
-//            })
-//        }
-//    }
-//    fn route_with(router: &mut Router, met: Method, url: &str, data: &str) {
-//        router.route(met, url, |req, &mut Request| {
-//            let mut res = Response::with((status::Ok, data));
-//            res.headers.set(content_type);
-//            Ok(res)
-//        });
-//    }
+    macro_rules! mock_route {
+        ( $router:expr, $met:ident, $url:expr, $file:expr) => {
+            $router.$met($url, |_: &mut Request| {
+
+                let content_type = 
+                    ContentType(Mime(TopLevel::Application, SubLevel::Json, vec![]));
+                let data = slurp_fixture($file);
+                let mut res = Response::with((status::Ok, data));
+                res.headers.set(content_type);
+                Ok(res)
+            })
+        }
+    }
+
 
     fn create_fixture_router() -> Router {
         let mut router = Router::new();
 
-        let content_type = 
-            ContentType(Mime(TopLevel::Application, SubLevel::Json, vec![]));
+        mock_route!(router, get, "/rest/api/2/issue/EX-2", "issue_1_response.json");
+        mock_route!(router, get, "/rest/api/2/project/EX/versions", "versions_response.json");
+        mock_route!(router, post, "/rest/api/2/project/EX/versions", "create_version.json");
 
-        let issue_1 = slurp_fixture("issue1_response.json");
-        let versions = slurp_fixture("versions_response.json");
-        let create_version = slurp_fixture("versions_response.json");
-
-        router.get("/rest/api/2/issue/EX-2", |req: &mut Request| {
-            let mut res = Response::with((status::Ok, issue_1));
-            res.headers.set(content_type);
-            Ok(res)
-        });
-        //route_with(&mut router, Method::Get,, &issue_1);
-        //route_with(&mut router, Method::Get, "/res/api/2/project/EX/versions", &versions);
-        //route_with(&mut router, Method::Post, "/rest/api/2/project/EX/versions", &create_version);
-        
-        router.put("/rest/api/2/issue/EX-2", |req: &mut Request| {
+        router.put("/rest/api/2/issue/EX-2", |_: &mut Request| {
             Ok(Response::with((status::NoContent, "")))
         });
 
@@ -446,31 +430,20 @@ mod test {
     fn pull_data() {
         env_logger::init().unwrap();
 
-//        mock("GET", "/rest/api/2/issue/EX-2")
-//            .match_header("content-type", "application/json")
-//            .with_body(&issue_1)
-//            .create();
-//        mock("GET", "/rest/api/2/project/EX/versions")
-//            .match_header("content-type", "application/json")
-//            .with_body(&versions)
-//            .create();
-//        mock("POST", "/rest/api/2/project/EX/versions")
-//            .match_header("content-type", "applcation/json")
-//            .with_body(&create_version)
-//            .create();
-//        mock("PUT", "/rest/api/2/issue/EX-2")
-//            .match_header("content-type", "application/json")
-//            .with_status(204)
-//            .create();
-//        mock("GET", "/a").with_body("a").create();
 
         let mut params = Params::new();
-        params.url = "http://".to_owned() + SERVER_ADDRESS;
+        params.url = "http://localhost:5000".to_owned();
         params.project_id = "EX".to_owned();
         params.version_name = "1.2.0".to_owned();
 
-        let server = Iron::new(create_fixture_router()).http("localhost:5000").unwrap();
+        std::thread::spawn(|| {
+            let router = create_fixture_router();
+            Iron::new(router)
+                .http("localhost:5000")
+                .unwrap();
+        });
 
+        println!("Mock server instantiated");
         let client = Client::new();
 
         let issue_tokens = [
