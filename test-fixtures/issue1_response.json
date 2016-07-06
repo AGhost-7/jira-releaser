@@ -140,12 +140,12 @@
         "versions": [],
         "votes": {
             "hasVoted": false,
-            "self": "https://jboudreau.atlassian.net/rest/api/2/issue/EX-2/votes",
+            "self": "https://jboudreau.atlassian.net/rest/api/2/issue/EX-1/votes",
             "votes": 0
         },
         "watches": {
             "isWatching": false,
-            "self": "https://jboudreau.atlassian.net/rest/api/2/issue/EX-2/watchers",
+            "self": "https://jboudreau.atlassian.net/rest/api/2/issue/EX-1/watchers",
             "watchCount": 0
         },
         "worklog": {
@@ -157,6 +157,6 @@
         "workratio": -1
     },
     "id": "10001",
-    "key": "EX-2",
+    "key": "EX-1",
     "self": "https://jboudreau.atlassian.net/rest/api/2/issue/10001"
 }

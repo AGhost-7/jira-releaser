@@ -253,7 +253,8 @@ fn set_issue_versions(
             fixVersions: versions.clone()
         }
     };
-    let payload = json::encode(&issue).unwrap();
+    let payload = json::encode(&issue).unwrap() + "
+    ";
     let response_result =
         send_jira_request(client, Method::Put, &url, params, Some(&payload));
     match response_result {
@@ -377,13 +378,11 @@ mod test {
     use std::path::Path;
     use ::std;
     use ::env_logger;
-    use std::env;
     use iron::prelude::*;
     use iron::status;
     use router::Router;
     use iron::mime::{Mime, TopLevel, SubLevel};
     use iron::headers::ContentType;
-    use iron::method::Method;
 
     fn slurp_fixture(file_path: &str) -> String {
         let fixtures_dir = std::env::var("FIXTURES_DIR").unwrap();
@@ -399,8 +398,7 @@ mod test {
 
     macro_rules! mock_route {
         ( $router:expr, $met:ident, $url:expr, $file:expr) => {
-            $router.$met($url, |_: &mut Request| {
-
+            $router.$met($url, |req: &mut Request| {
                 let content_type = 
                     ContentType(Mime(TopLevel::Application, SubLevel::Json, vec![]));
                 let data = slurp_fixture($file);
@@ -411,15 +409,14 @@ mod test {
         }
     }
 
-
     fn create_fixture_router() -> Router {
         let mut router = Router::new();
 
-        mock_route!(router, get, "/rest/api/2/issue/EX-2", "issue_1_response.json");
+        mock_route!(router, get, "/rest/api/2/issue/EX-1", "issue1_response.json");
         mock_route!(router, get, "/rest/api/2/project/EX/versions", "versions_response.json");
-        mock_route!(router, post, "/rest/api/2/project/EX/versions", "create_version.json");
+        mock_route!(router, post, "/rest/api/2/version", "create_version.json");
 
-        router.put("/rest/api/2/issue/EX-2", |_: &mut Request| {
+        router.put("/rest/api/2/issue/EX-1", |_: &mut Request| {
             Ok(Response::with((status::NoContent, "")))
         });
 
@@ -435,6 +432,8 @@ mod test {
         params.url = "http://localhost:5000".to_owned();
         params.project_id = "EX".to_owned();
         params.version_name = "1.2.0".to_owned();
+        params.username = "foobar".to_owned();
+        params.password = "foobar".to_owned();
 
         std::thread::spawn(|| {
             let router = create_fixture_router();
@@ -443,7 +442,6 @@ mod test {
                 .unwrap();
         });
 
-        println!("Mock server instantiated");
         let client = Client::new();
 
         let issue_tokens = [
@@ -451,7 +449,6 @@ mod test {
             "EX-2".to_owned()
         ];
         let res = super::publish_release(&client, &params, &issue_tokens[..]);
-        println!("{:?}", res);
         assert!(res.is_ok(), "Did not error out");
     }
 }
