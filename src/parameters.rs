@@ -6,169 +6,129 @@
 extern crate clap;
 use self::clap::{App, Arg};
 use std::env;
-use std::ffi::OsString;
+use std::io::{self, Read};
+use std::error::Error;
+use std::fmt;
+use std::fmt::{Display};
 
-pub struct ParamsParser {
-    username_env: Option<String>,
-    password_env: Option<String>
+#[derive(Debug)]
+pub enum  ParamsErr {
+    StdinErr,
+    InvalidIssueErr(String),
+    ProjectMismatchErr(String)
+}
+
+impl <'a>Error for ParamsErr {
+    fn description(&self) -> &str {
+        "ParamsErr"
+    }
+}
+
+impl <'a>Display for ParamsErr {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &StdinErr =>
+                write!(formatter, "Failed to read from stdin"),
+            &InvalidIssueErr(ref issue) =>
+                write!(formatter, "Invalid Jira issue \"{}\"", issue),
+            &ProjectMismatchErr(ref project) =>
+                write!(formatter, "Project \"{}\" is not consistent with other issues.", project)
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct Params {
-    pub release_branch: String,
-    pub latest_branch: String,
+    pub issues: Vec<String>,
     pub username: String,
     pub password: String,
     pub url: String,
-    pub project_id: String,
-    pub version_name: String
-}
-impl Params {
-    pub fn new () -> Params {
-        Params {
-            release_branch: String::from(""),
-            latest_branch: String::from(""),
-            username: String::from(""),
-            password: String::from(""),
-            url: String::from(""),
-            project_id: String::from(""),
-            version_name: String::from("")
-        }
-    }
+    pub version_name: String,
+    pub project: Option<String>
 }
 
-impl ParamsParser {
-    pub fn new<'n>() -> ParamsParser {
-        ParamsParser {
-            username_env: env::var("JIRA_USERNAME").ok(),
-            password_env: env::var("JIRA_PASSWORD").ok()
-        }
-    }
-    fn get_app(&self) -> App {
+use self::ParamsErr::*;
+
+impl Params {
+
+    fn get_app<'a>() -> App<'a, 'a> {
         App::new("Jira Release Tool")
-            .version("0.2.0")
+            .version("0.3.0")
             .author("Jonathan Boudreau")
-            .arg(Arg::with_name("Release branch")
-                 .short("r")
-                 .long("release-branch")
-                 .takes_value(true)
-                 .required(true)
-                 .default_value("master")
-                 .help("The branch which once the release is created, \
-                       will be merged into"))
-            .arg(Arg::with_name("Latest branch")
-                .short("l")
-                .long("latest-branch")
-                .takes_value(true)
-                .required(true)
-                .default_value("develop")
-                .help("The branch which is going to be merged to trigger \
-                    the release"))
             .arg(Arg::with_name("Jira URL")
-                  .short("U")
-                  .long("url")
-                  .takes_value(true)
-                  .required(true)
-                  .help("This is the api root url for your Jira project."))
-            .arg(Arg::with_name("Project Id")
-                 .short("P")
-                 .long("project-id")
+                 .short("U")
+                 .long("url")
                  .takes_value(true)
                  .required(true)
-                 .help("Project id or key on Jira"))
+                 .help("This is the api root url for your Jira project."))
             .arg(Arg::with_name("Version name")
                  .short("v")
                  .long("version-name")
                  .takes_value(true)
                  .required(true)
                  .help("The version name to use for the release."))
-            .arg(self.username_arg())
-            .arg(self.password_arg())
+            .arg(Arg::with_name("Username")
+                 .short("u")
+                 .long("username")
+                 .takes_value(true)
+                 .help("Your Jira username. Falls back to the JIRA_USERNAME \
+                    environment variable")
+                 .required(true)
+                 .env("JIRA_USERNAME"))
+            .arg(Arg::with_name("Password")
+                 .short("p")
+                 .long("password")
+                 .env("JIRA_PASSWORD")
+                 .required(true)
+                 .takes_value(true)
+                 .help("Jira password. Falls back to JIRA_PASSWORD environment \
+                    variable"))
     }
 
-    fn username_arg(&self) -> Arg {
-        let arg = Arg::with_name("Username")
-             .short("u")
-             .long("username")
-             .takes_value(true)
-             .help("Your Jira username. Falls back to the JIRA_USERNAME \
-                environment variable");
-        match self.username_env.as_ref() {
-            Some(username) => arg.default_value(username),
-            None => arg.required(true)
+    fn issues<'a>() -> Result<Vec<String>, ParamsErr> {
+        let mut issues = String::new();
+        io::stdin()
+            .read_to_string(&mut issues)
+            .map_err(|_| ParamsErr::StdinErr)?;
+        Ok(issues.lines().map(|issue| issue.to_owned()).collect())
+    }
+
+    fn project<'a>(issues: &'a Vec<String>) -> Result<Option<String>, ParamsErr> {
+        let mut project: Option<String> = None;
+        for issue in issues.iter() {
+            let issue_project = issue
+                .find("-")
+                .map(|index| &issue[0..index])
+                .ok_or_else(|| InvalidIssueErr(issue.to_owned()))?;
+            match project {
+                Some(ref project) if project != issue_project => {
+                    return Err(ProjectMismatchErr(project.to_owned()))
+                },
+                Some(_) => (),
+                None => {
+                    project = Some(issue_project.to_owned());
+                }
+            }
         }
+        Ok(project)
     }
-
-    fn password_arg(&self) -> Arg {
-        let arg = Arg::with_name("Password")
-            .short("p")
-            .long("password")
-            .takes_value(true)
-            .help("Jira password. Falls back to JIRA_PASSWORD environment \
-                variable");
-        match self.password_env.as_ref() {
-            Some(password) => arg.default_value(password),
-            None => arg.required(true)
-        }
-    }
-
-    pub fn parse_str<I, T>(&self, itr: I) -> Params 
-            where I: IntoIterator<Item=T>, T: Into<OsString> {
-        let app = self.get_app();
-        let matches = app.get_matches_from(itr);
+    
+    pub fn new() -> Result<Params, ParamsErr> {
+        let app = Params::get_app();
+        let matches = app.get_matches_from(env::args_os());
         let from_key = |s: &str| matches.value_of(s).unwrap().to_owned();
-        Params {
+        let issues = Params::issues()?;
+        let project = Params::project(&issues)?;
+        let params = Params {
+            project: project,
+            issues: issues,
             username: from_key("Username"),
             password: from_key("Password"),
             url: from_key("Jira URL"),
-            release_branch: from_key("Release branch"),
-            latest_branch: from_key("Latest branch"),
-            project_id: from_key("Project Id"),
             version_name: from_key("Version name")
-        }
-    }
+        };
 
-    pub fn parse_params(&self) -> Params {
-        self.parse_str(env::args_os())
+        Ok(params)
     }
 }
 
-#[test]
-fn simple_parser() {
-    let parser = ParamsParser {
-        username_env: None,
-        password_env: None
-    };
-    let args = vec![
-        "program",
-        "--username", "Foobar",
-        "--password", "123",
-        "--release-branch", "master",
-        "--latest-branch", "devel",
-        "--url", "http://noodle.com",
-        "--project-id", "NOOB-9000",
-        "--version-name", "1.1.1"
-    ];
-    let params = parser.parse_str(&args);
-    assert_eq!(&params.username, "Foobar");
-    assert_eq!(&params.release_branch, "master");
-}
-
-#[test]
-fn with_env() {
-    let parser = ParamsParser {
-        username_env: Some(String::from("Hai")),
-        password_env: Some(String::from("123"))
-    };
-    let args = vec![
-        "program",
-        "--release-branch", "foobar",
-        "--url", "http://doodle.com",
-        "--project-id", "WTF-2",
-        "--version-name", "1.1.1"
-    ];
-    let params = parser.parse_str(&args);
-    assert_eq!(&params.username, "Hai");
-    assert_eq!(&params.latest_branch, "develop");
-    assert_eq!(&params.release_branch, "foobar");
-}
